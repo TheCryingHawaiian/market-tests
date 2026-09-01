@@ -1,10 +1,16 @@
-from feed import MarketDataFeed
+from feed import HistoricalMarketDataFeed
 from strategy import BollingerRSIStrategy
 from engine import ExecutionEngine
 from dashboard import TradingDashboard
 
 if __name__ == "__main__":
-    feed = MarketDataFeed(start_price=100.0, volatility=0.6)
+    # Fetch 5 days of 1-minute historical data for Apple (AAPL)
+    # Options: symbol="BTC-USD", "EURUSD=X", "SPY", "TSLA", etc.
+    feed = HistoricalMarketDataFeed(
+        symbol="AAPL", 
+        period="5d", 
+        interval="1m"
+    )
     
     strategy = BollingerRSIStrategy(
         bb_period=20, 
@@ -20,11 +26,12 @@ if __name__ == "__main__":
         cooldown_ticks=30
     )
 
+    # Set refresh_ms low (e.g., 50ms) to run backtests faster through historical data
     app = TradingDashboard(
         feed=feed,
         strategy=strategy,
         engine=engine,
         units_per_trade=10.0,
-        refresh_ms=2
+        refresh_ms=50
     )
     app.run()

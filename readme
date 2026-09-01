@@ -1,5 +1,5 @@
 market tests
-A Python framework for backtesting and benchmarking intra (and infra) day trading strategies against historical market data. Built to test trend-following and momentum models against a buy-and-hold baseline.
+A Python framework for backtesting and benchmarking intra (and infra) day trading strategies against historical market data. Built to test trend-following and momentum models against a buy and hold baseline.
 Conclusion: All models tested do not yield better results than following market average.
 
 

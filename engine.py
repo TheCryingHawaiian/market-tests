@@ -1,60 +1,52 @@
 from typing import Optional, List
 from models import Trade
 
-class ExecutionEngine:
-    """Handles order execution, dynamic ATR stops, trailing profit locks, cooldowns, and equity tracking."""
+class CompoundingExecutionEngine:
+    """Execution engine with dynamic equity compounding and ATR trailing stops."""
 
-    def __init__(
-        self, 
-        initial_capital: float = 10000.0, 
-        atr_multiplier: float = 2.0, 
-        max_hold_ticks: int = 60,
-        cooldown_ticks: int = 30,
-        use_trailing_stop: bool = True
-    ):
+    def __init__(self, initial_capital: float = 10000.0, atr_multiplier: float = 2.5, equity_allocation_pct: float = 0.95):
         self.starting_capital = initial_capital
         self.atr_multiplier = atr_multiplier
-        self.max_hold_ticks = max_hold_ticks
-        self.cooldown_ticks = cooldown_ticks
-        self.use_trailing_stop = use_trailing_stop
+        self.allocation_pct = equity_allocation_pct
         
         self.position: str = "NONE"
         self.active_trade: Optional[Trade] = None
         self.trade_history: List[Trade] = []
         self.realized_pnl: float = 0.0
         self._trade_counter = 0
-        self.last_stop_tick: int = -999
 
-    def is_in_cooldown(self, current_tick: int) -> bool:
-        """Blocks new entries for X ticks after a stop-loss trigger."""
-        return (current_tick - self.last_stop_tick) < self.cooldown_ticks
+    def calculate_units(self, current_price: float) -> float:
+        """Calculates dynamic share size using 95% of current total equity."""
+        current_equity = self.starting_capital + self.realized_pnl
+        allocated_cash = current_equity * self.allocation_pct
+        return max(round(allocated_cash / current_price, 4), 1.0)
 
-    # engine.py update inside check_risk_exits
     def check_risk_exits(self, current_price: float, current_tick: int, current_atr: float) -> Optional[Trade]:
         if not self.active_trade or self.position != "LONG":
             return None
 
         trade = self.active_trade
-        ticks_held = current_tick - trade.entry_tick
-        unrealized = self.get_unrealized_pnl(current_price)
+        stop_distance = current_atr * self.atr_multiplier
 
-        # Pure ATR Stop-Loss (Initial Risk Level)
+        # Trail the stop upward behind high watermarks
+        if current_price > trade.highest_price:
+            trade.highest_price = current_price
+            new_stop = trade.highest_price - stop_distance
+            if new_stop > trade.stop_price:
+                trade.stop_price = new_stop
+
+        # Chandelier Trailing Stop Exit
         if current_price <= trade.stop_price:
-            self.last_stop_tick = current_tick
-            return self._close_position(current_price, current_tick, reason="STOP_LOSS")
-
-        # Time-Based Exit
-        if ticks_held >= self.max_hold_ticks and unrealized <= 0.0:
-            return self._close_position(current_price, current_tick, reason="TIME_EXIT")
+            return self._close_position(current_price, current_tick, reason="TRAILING_STOP")
 
         return None
 
-    def place_order(self, order_type: str, price: float, units: float, tick: int, current_atr: float) -> Optional[Trade]:
-        """Opens or closes positions with dynamic ATR stop placement."""
+    def place_order(self, order_type: str, price: float, tick: int, current_atr: float) -> Optional[Trade]:
         order_type = order_type.upper()
 
         if order_type == "BUY" and self.position == "NONE":
             self._trade_counter += 1
+            units = self.calculate_units(price)
             stop_dist = current_atr * self.atr_multiplier
             
             trade = Trade(
@@ -94,18 +86,15 @@ class ExecutionEngine:
         return trade
 
     def get_unrealized_pnl(self, current_price: float) -> float:
-        """Calculates unrealized PnL of an active position."""
         if not self.active_trade or self.position != "LONG":
             return 0.0
         return (current_price - self.active_trade.entry_price) * self.active_trade.units
 
     def get_equity(self, current_price: float) -> float:
-        """Calculates total account equity (starting capital + realized PnL + unrealized PnL)."""
         return self.starting_capital + self.realized_pnl + self.get_unrealized_pnl(current_price)
 
     @property
     def win_rate(self) -> float:
-        """Calculates historical trade win percentage."""
         if not self.trade_history:
             return 0.0
         wins = sum(1 for t in self.trade_history if t.realized_pnl > 0)

@@ -1,18 +1,18 @@
 {
     "starting_capital": 10000.0,
-    "ending_equity": 10251.55,
-    "total_realized_pnl": 251.55,
+    "ending_equity": 10396.23,
+    "total_realized_pnl": 396.23,
     "unrealized_pnl": 0.0,
     "metrics": {
-        "total_completed_trades": 30,
-        "win_rate_percent": 63.33,
-        "wins": 19,
-        "losses": 11,
+        "total_completed_trades": 15,
+        "win_rate_percent": 33.33,
+        "wins": 5,
+        "losses": 10,
         "breakeven": 0
     },
     "exit_breakdown": {
-        "signal_exits": 19,
-        "stop_loss_exits": 10,
-        "time_limit_exits": 1
+        "signal_exits": 0,
+        "stop_loss_exits": 0,
+        "time_limit_exits": 0
     }
 }

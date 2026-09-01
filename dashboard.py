@@ -2,7 +2,7 @@ from typing import List
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-from feed import MarketDataFeed
+from feed import HistoricalMarketDataFeed
 from strategy import BollingerRSIStrategy
 from engine import ExecutionEngine
 from exporter import export_session_data
@@ -10,9 +10,9 @@ from exporter import export_session_data
 class TradingDashboard:
     """Renders execution visualization and handles step evaluation."""
     
-    def __init__(self, feed: MarketDataFeed, strategy: BollingerRSIStrategy, 
-                 engine: ExecutionEngine, units_per_trade: float = 1.0, 
-                 max_window: int = 100, refresh_ms: int = 200):
+    def __init__(self, feed: HistoricalMarketDataFeed, strategy: BollingerRSIStrategy, 
+                 engine: ExecutionEngine, units_per_trade: float = 10.0, 
+                 max_window: int = 100, refresh_ms: int = 10):
         
         self.feed = feed
         self.strategy = strategy
@@ -54,17 +54,20 @@ class TradingDashboard:
         self.ticks.append(tick)
         self.prices.append(price)
 
-        # 1. Check risk exits
-        risk_trade = self.engine.check_risk_exits(price, tick)
+        # 1. Calculate current market ATR
+        current_atr = self.strategy.calculate_atr(self.prices)
+
+        # 2. Check risk exits (ATR Stop Loss / Trailing Stop / Time Exit)
+        risk_trade = self.engine.check_risk_exits(price, tick, current_atr)
         if risk_trade:
             self.sell_ticks.append(tick)
             self.sell_prices.append(price)
 
-        # 2. Check strategy signals if not in post-stop cooldown
+        # 3. Check strategy signals if not in post-stop cooldown
         if not self.engine.is_in_cooldown(tick):
             signal = self.strategy.generate_signal(self.prices)
             if signal in ("BUY", "SELL"):
-                executed_trade = self.engine.place_order(signal, price, self.units, tick)
+                executed_trade = self.engine.place_order(signal, price, self.units, tick, current_atr)
                 if executed_trade:
                     if signal == "BUY":
                         self.buy_ticks.append(tick)
@@ -100,6 +103,7 @@ class TradingDashboard:
         cooldown_str = " (COOLDOWN)" if self.engine.is_in_cooldown(tick) else ""
         self.label.set_text(
             f"Price:      {price:.2f}\n"
+            f"ATR:        {current_atr:.2f}\n"
             f"Position:   {self.engine.position}{cooldown_str}\n"
             f"Realized:   ${self.engine.realized_pnl:+.2f}\n"
             f"Unrealized: ${unrealized:+.2f}\n"

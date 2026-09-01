@@ -4,7 +4,7 @@ from typing import Optional
 @dataclass
 class Trade:
     trade_id: int
-    side: str          # "LONG" or "SHORT"
+    side: str
     entry_price: float
     entry_tick: int
     units: float
@@ -12,4 +12,6 @@ class Trade:
     exit_tick: Optional[int] = None
     realized_pnl: float = 0.0
     is_open: bool = True
-    exit_reason: str = "OPEN"  # "OPEN", "SIGNAL", "STOP_LOSS", "TIME_EXIT"
+    exit_reason: str = "OPEN"
+    highest_price: float = 0.0  # Dynamic peak price for trailing stop tracking
+    stop_price: float = 0.0     # Dynamic volatility stop level

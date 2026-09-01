@@ -1,11 +1,17 @@
 import numpy as np
 
 class BollingerRSIStrategy:
-    """Generates signals using Bollinger Bands, RSI, and an SMA crossover trend filter."""
+    """Mean-reversion strategy with 50 SMA trend regime filter and ATR calculation."""
     
-    def __init__(self, bb_period: int = 20, num_std_dev: float = 2.0, 
-                 rsi_period: int = 14, rsi_oversold: float = 30.0, 
-                 rsi_overbought: float = 70.0, trend_sma_period: int = 50):
+    def __init__(
+        self, 
+        bb_period: int = 20, 
+        num_std_dev: float = 2.0, 
+        rsi_period: int = 14, 
+        rsi_oversold: float = 30.0, 
+        rsi_overbought: float = 70.0, 
+        trend_sma_period: int = 50
+    ):
         self.bb_period = bb_period
         self.num_std_dev = num_std_dev
         self.rsi_period = rsi_period
@@ -13,20 +19,32 @@ class BollingerRSIStrategy:
         self.rsi_overbought = rsi_overbought
         self.trend_sma_period = trend_sma_period
 
+    def calculate_atr(self, prices: list, period: int = 14) -> float:
+        """Calculates Average True Range (ATR) proxy from close price series."""
+        if len(prices) < period + 1:
+            return 1.0
+        
+        # Calculate mean absolute tick-to-tick price deltas
+        deltas = np.abs(np.diff(prices[-(period + 1):]))
+        atr = float(np.mean(deltas))
+        return max(atr, 0.01)  # Guard against zero-volatility divisions
+
     def generate_signal(self, prices: list) -> str:
-        if len(prices) < max(self.bb_period, self.rsi_period, self.trend_sma_period):
+        """Generates entry/exit signals filtered by the 50 SMA trend regime."""
+        min_required = max(self.bb_period, self.rsi_period, self.trend_sma_period)
+        if len(prices) < min_required:
             return "HOLD"
 
         current_price = prices[-1]
-        
-        # Bollinger Bands (20-period)
+
+        # Bollinger Bands
         window = prices[-self.bb_period:]
         sma = np.mean(window)
         std = np.std(window)
         lower_band = sma - (self.num_std_dev * std)
         upper_band = sma + (self.num_std_dev * std)
 
-        # Macro Trend Filter (50-period SMA)
+        # Macro Trend Regime Filter
         trend_sma = np.mean(prices[-self.trend_sma_period:])
 
         # RSI Calculation
@@ -36,17 +54,13 @@ class BollingerRSIStrategy:
         avg_gain = np.mean(gains)
         avg_loss = np.mean(losses)
 
-        if avg_loss == 0:
-            rsi = 100.0
-        else:
-            rs = avg_gain / avg_loss
-            rsi = 100.0 - (100.0 / (1.0 + rs))
+        rsi = 100.0 if avg_loss == 0 else 100.0 - (100.0 / (1.0 + (avg_gain / avg_loss)))
 
-        # BUY: Price dipped below lower band & RSI oversold, BUT 20 SMA > 50 SMA (Uptrend)
+        # Signal Logic: Long Dip Buy only in Macro Uptrends (SMA > Trend SMA)
         if current_price < lower_band and rsi < self.rsi_oversold and sma > trend_sma:
             return "BUY"
 
-        # SELL: Take profit on upper band breach or overbought RSI
+        # Exit Signal: Price reaches Upper Band or RSI becomes Overbought
         if current_price > upper_band or rsi > self.rsi_overbought:
             return "SELL"
 

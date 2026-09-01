@@ -1,37 +1,39 @@
-from feed import HistoricalMarketDataFeed
+from feed import HistoricalMarketDataFeed  # Or BulkCSVDataFeed
 from strategy import BollingerRSIStrategy
 from engine import ExecutionEngine
 from dashboard import TradingDashboard
 
 if __name__ == "__main__":
-    # Fetch 5 days of 1-minute historical data for Apple (AAPL)
-    # Options: symbol="BTC-USD", "EURUSD=X", "SPY", "TSLA", etc.
+    # Load historical 5m AAPL candles or local CSV file
     feed = HistoricalMarketDataFeed(
         symbol="AAPL", 
-        period="5d", 
-        interval="1m"
+        period="60d", 
+        interval="5m"
     )
     
     strategy = BollingerRSIStrategy(
         bb_period=20, 
         num_std_dev=2.0, 
         rsi_period=14, 
+        rsi_oversold=30.0,
+        rsi_overbought=70.0,
         trend_sma_period=50
     )
     
+    # main.py updates
     engine = ExecutionEngine(
         initial_capital=10000.0, 
-        stop_loss_amount=35.0, 
-        max_hold_ticks=60,
-        cooldown_ticks=30
+        atr_multiplier=3.5,        # Wider stop buffer prevents noise stop-outs
+        max_hold_ticks=60,         
+        cooldown_ticks=30,         
+        use_trailing_stop=False    # Disabled trailing stop for mean reversion
     )
 
-    # Set refresh_ms low (e.g., 50ms) to run backtests faster through historical data
     app = TradingDashboard(
         feed=feed,
         strategy=strategy,
         engine=engine,
         units_per_trade=10.0,
-        refresh_ms=50
+        refresh_ms=10
     )
     app.run()
